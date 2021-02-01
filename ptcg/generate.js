@@ -1,5 +1,6 @@
 const common = require('../common')
 common.dir = __dirname
+common.app = 'ptcg'
 
 const DATA = Object.values(common.getData(__dirname).reduce((a,c) => {
 	a[c.id] = {
