@@ -13,6 +13,69 @@ const loadScript = (script, isModule, cb) => {
 	document.head.appendChild(s)
 }
 
+Array.prototype.shuffle = function(){
+    for (let i = this.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        const temp = this[i]
+        this[i] = this[j]
+        this[j] = temp
+    }
+}
+
+const initGame = (decks) => {
+	window.GAME = {
+		left:{
+			name:'left',
+			score:window.CONFIG.score,
+			hand:[],
+			deck:[],
+			active:[]
+		},
+		right:{
+			name:'right',
+			score:window.CONFIG.score,
+			hand:[],
+			deck:[],
+			active:[]
+		},
+		active:Math.random() > 0.5 ? 'left' : 'right',
+		turn:0
+	}
+	Object.keys(window.GAME).filter(k => typeof window.GAME[k] === 'object').forEach((k,j) => {
+		Object.keys(decks[j]).forEach(id => {
+			for(let i=0 ; i < decks[j][id] ; i++){
+				window.GAME[k].deck.push(Object.assign({},window.DATA.find(c => c.id === id)))
+			}
+		})
+		window.GAME[k].deck.shuffle()
+		for(let i=0 ; i < window.CONFIG.cards.hand ; i++){
+			drawCard(window.GAME[k])
+		}
+	})
+}
+const moveCard = (src,dest) => src.length && dest.push(src.pop())
+const drawCard = (player) => moveCard(player.deck, player.hand)
+const forfeit = () => window.GAME[window.GAME.active].score = 0
+const endTurn = () => {
+	window.GAME.active = window.GAME.active === 'left' ? 'right' : 'left'
+	drawCard(window.GAME[window.GAME.active])
+	window.GAME.turn++
+}
+
+class UploadButton extends Component {
+	upload(e){
+		const reader = new FileReader()
+		reader.onload = () => this.props.onUpload(reader.result)
+		reader.readAsText(e.target.files[0])
+	}
+	render(){
+		return h('button',{class:'btn',onClick:e => document.getElementById(this.props.id).click()},
+			this.props.display || h('i',{class:'icon icon-upload'}),
+			h('input',{type:'file',id:this.props.id,hidden:true,onInput:e => this.upload(e)})
+		)
+	}
+}
+
 class Modal extends Component {
 	content(){
 		return undefined
@@ -45,58 +108,114 @@ class Modal extends Component {
 }
 window.Modal = Modal
 
-class Stats extends Component {
-	forfeit(e){
-
-	}
-	endgame(e){
-
-	}
-	render(){
-		return h('div',{class:'columns'},
-			h('div',{class:'column col-4 text-center'},
-				h('label',{class:'form-label'},`${window.GAME.left.name}: ${window.GAME.left.score}`)
-			),
-			h('div',{class:'column col-4 text-center'},
-				h('button',{class:'btn',onClick:e => this.forfeit(e)},'Forfeit'),
-				h('button',{class:'btn',onClick:e => this.endgame(e)},'End Game')
-			),
-			h('div',{class:'column col-4 text-center'},
-				h('label',{class:'form-label'},`${window.GAME.right.name}: ${window.GAME.right.score}`)
-			)
-		)
-	}
-}
-
 class Player extends Component {
 	render(){
 		return h('div',{class:'text-center'},
-			this.props.player.active.map(c => h('div',{class:'container'},
-				h('img',{class:'img-responsive d-inline-flex',src:c.imageUrl})
-			))
-		)
-	}
-}
-
-class Arena extends Component {
-	render(){
-		return h('div',{class:'columns'},
-			h('div',{class:'column col-6 col-sm-12'},
-				h(Player, {player:window.GAME.left})
+			h('div',{class:`divider mb-2 ${window.GAME.active === this.props.player.name ? 'text-bold' : ''}`,'data-content':`${this.props.player.name} (${this.props.player.score})`}),
+			h('div',{class:'columns'},
+				h('div',{class:'column col-2'},
+					h('div',{class:'text-center mb-1'},
+						h('span',{class:'chip'},`Deck: ${this.props.player.deck.length}`)
+					),
+					h('div',{class:'text-center'},
+						h('button',{class:'btn',onClick:e => this.setState({showHandModal:true})},`Hand: ${this.props.player.hand.length}`)
+					)
+				),
+				h('div',{class:'column col-10'},
+					this.props.player.active.filter(c => !!c).map(c => h('div',{class:'container'},
+						h('img',{class:'img-responsive d-inline-flex',src:c.imageUrl})
+					))
+				)
 			),
-			h('div',{class:'column col-6 col-sm-12'},
-				h(Player, {player:window.GAME.right})
-			)
+			h(window.HandModal,Object.assign({
+				id:'hand-modal-'+this.props.player.name,
+				show:this.state.showHandModal,
+				close:() => this.setState({showHandModal:false})
+			},this.props))
 		)
 	}
 }
 
 class Game extends Component {
+	forfeit(e){
+		if(confirm('really forfeit?')){
+			forfeit()
+			this.props.refresh({m:{component:GameOver}})
+		}
+	}
+	endTurn(e){
+		if(confirm('really end turn?')){
+			endTurn()
+			this.setState(this.state)
+		}
+	}
 	render(){
 		return h('div',undefined,
 			h('div',{class:'h5 text-center'}, window.CONFIG.title),
-			h(Stats, {}),
-			h(Arena, {})
+			h('div',{class:'columns'},
+				h('div',{class:'column col-6 col-mx-auto text-center'},
+					h('button',{class:'btn',onClick:e => this.forfeit(e)},'Forfeit'),
+					h('span',{class:'ml-1 mr-1'},window.GAME.turn),
+					h('button',{class:'btn',onClick:e => this.endTurn(e)},'End Turn')
+				)
+			),
+			h('div',{class:'columns'},
+				h('div',{class:'column col-6 col-sm-12'},
+					h(Player, Object.assign({player:window.GAME.left},this.props))
+				),
+				h('div',{class:'column col-6 col-sm-12'},
+					h(Player, Object.assign({player:window.GAME.right},this.props))
+				)
+			)
+		)
+	}
+}
+
+class GameMenu extends Component {
+	componentWillMount(){
+		this.state.players = 2
+		this.state.decks = []
+	}
+	onUpload(deck,i){
+		this.state.decks[i] = JSON.parse(deck)
+		this.setState(this.state)
+	}
+	start(e){
+		initGame(this.state.decks)
+		this.props.refresh({m:{component:Game}})
+	}
+	render(){
+		return h('div',undefined,
+			h('div',{class:'columns'},
+				Array.from({length:this.state.players}).map((t,i) => 
+					h('div',{class:'column col col-sm-12 text-center'},
+						h('div',{class:'h5'},`Player ${i+1} Deck`),
+						this.state.decks[i] ? h('i',{class:'icon icon-check'}) : h(UploadButton,{id:`player-${i}-upload`,onUpload:result => this.onUpload(result,i)})
+					)
+				)
+			),
+			this.state.decks.length === this.state.players && h('div',{class:'btn-group-blk mt-2'},
+				h('button',{class:'btn',onClick:e => this.start(e)},'Start')
+			)
+		)
+	}
+}
+
+class GameOver extends Component {
+	render(){
+		return h('div',{class:'columns'},
+			h('div',{class:'column col-3 text-center'},
+				h('label',{class:'form-label'},`${window.GAME.left.name}: ${window.GAME.left.score}`)
+			),
+			h('div',{class:'column col-6 text-center'},
+				h('div',{class:'h5'},`Game Over`),
+				h('div',undefined,
+					h('button',{class:'btn',onClick:e => this.props.refresh({m:undefined})},'Main Menu')
+				)
+			),
+			h('div',{class:'column col-3 text-center'},
+				h('label',{class:'form-label'},`${window.GAME.right.name}: ${window.GAME.right.score}`)
+			)
 		)
 	}
 }
@@ -161,13 +280,6 @@ class DeckBuilder extends Component {
 			download(JSON.stringify(this.state.mine),deckName+'.json','application/json')
 		}
 	}
-	upload(e){
-		const reader = new FileReader()
-		reader.onload = () => {
-			this.setState({mine:JSON.parse(reader.result),showingMine:true})
-		}
-		reader.readAsText(e.target.files[0])
-	}
 	render(){
 		const refresh = state => this.setState(state || this.state)
 		const results = (!this.state.showingMine ? this.state.results : DATA.filter(c => this.state.mine[c.id]))
@@ -180,10 +292,7 @@ class DeckBuilder extends Component {
 					h('button',{class:`btn${this.state.showingMine ? ' btn-primary' : ''}`,onClick:e => this.download()},
 						h('i',{class:'icon icon-download'})
 					),
-					h('button',{class:'btn',onClick:e => document.getElementById('uploadButton').click()},
-						h('i',{class:'icon icon-upload'}),
-						h('input',{type:'file',id:'uploadButton',hidden:true,onInput:e => this.upload(e)})
-					)
+					h(UploadButton,{id:'upload-button',onUpload:result => this.setState({mine:JSON.parse(result),showingMine:true})})
 				)
 			),
 			h(window.DeckBuilderSearch,{
@@ -211,7 +320,7 @@ class DeckBuilder extends Component {
 
 const SCREENS = [
 	{name:'Deck Builder',component:DeckBuilder},
-	{name:'New Game',component:Game}
+	{name:'New Game',component:GameMenu}
 ]
 
 class Container extends Component {
@@ -227,22 +336,6 @@ class Container extends Component {
 }
 
 loadScript('data', false, () => {
-	window.GAME = {
-		left:{
-			name:'L',
-			score:0,
-			hand:[],
-			deck:[],
-			active:[]
-		},
-		right:{
-			name:'R',
-			score:0,
-			hand:[],
-			deck:[],
-			active:[]
-		}
-	}
 	loadScript('index', true, () => {	
 		render(h(Container,{}), document.body)
 	})

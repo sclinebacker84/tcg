@@ -1,10 +1,23 @@
 import { h, Component, render } from '../preact.module.js'
 
 window.CONFIG.title = 'Pokemon Card Game'
+window.CONFIG.score = 4
 window.CONFIG.cards = {
 	hand:3,
 	active:1
 }
+
+class HandModal extends window.Modal {
+	onClick(c){
+		
+	}
+	content(){
+		return h('div',{style:'width: 30em ; overflow-x: auto',class:'d-inline-flex'},
+			this.props.player.hand.map(c => h('img',{class:'img-responsive ml-1',src:c.imageUrl,onClick:e => this.onClick(c)}))
+		)
+	}
+}
+window.HandModal = HandModal
 
 class DeckBuilderModalFooter extends Component {
 	render(){
